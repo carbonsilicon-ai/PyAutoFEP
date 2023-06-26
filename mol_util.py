@@ -591,13 +591,20 @@ def process_dummy_atoms(molecule, verbosity=0):
     # Iterates over a copy of molecule ahd convert query atoms to dummy atoms, adding bonds if necessary
     temp_mol = rdkit.Chem.Mol(molecule)
     for atom_idx, each_atom in enumerate(temp_mol.GetAtoms()):
-        if isinstance(each_atom, rdkit.Chem.rdchem.QueryAtom):
+        #print('analysis each atom')
+        #print('prop',each_atom.GetProp('_TriposAtomName')); 
+        if isinstance(each_atom, rdkit.Chem.rdchem.QueryAtom): # not have the atoms
+            print('the atom is been modified')
             newdummy = rdkit.Chem.Atom(0)
+            print('atom_idx',atom_idx)
+            print('atom_prop',dir(each_atom))
+
             rdedmol = rdkit.Chem.RWMol(molecule)
             rdedmol.ReplaceAtom(atom_idx, newdummy, preserveProps=True)
             molecule = rdedmol.GetMol()
-
+            
             if each_atom.GetProp('_TriposAtomName')[:2] == 'LP':
+                print('prop',each_atom.GetProp('_TriposAtomName'))
                 os_util.local_print('Lone pair found. Atom with id {} was assumed a lone pair by its name ({}) and '
                                     'its type ({}). If this is wrong, please change the atom name.'
                                     ''.format(atom_idx, each_atom.GetProp('_TriposAtomName'),
@@ -615,6 +622,7 @@ def process_dummy_atoms(molecule, verbosity=0):
                     import numpy
                     temp_mol.GetConformer(0)
                     dist_list = numpy.argsort(numpy.array(rdkit.Chem.Get3DDistanceMatrix(temp_mol)[atom_idx]))
+                    print('dist_list',dist_list)
                     closer_atom = int(dist_list[1])
                     rdedmol = rdkit.Chem.RWMol(molecule)
                     rdedmol.AddBond(atom_idx, closer_atom)

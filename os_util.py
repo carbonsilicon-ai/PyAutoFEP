@@ -92,6 +92,10 @@ def read_file_to_buffer(filename, die_on_error=False, return_as_list=False, erro
         die_on_error is False and the file cannot be read, False will be returned.
     """
 
+    local_print('Entering read_file_to_buffer(filename={}, die_on_error={}, return_as_list={})'
+                ''.format(filename, die_on_error, return_as_list),
+                msg_verbosity=verbosity_level.debug, current_verbosity=verbosity)
+
     try:
         with open(filename, 'r') as input_file:
             if return_as_list:
@@ -127,7 +131,17 @@ def run_gmx(gmx_bin, arg_list, input_data='', output_file=None, alt_environment=
     :param bool die_on_error: raise error if command returns a error code
     :param int verbosity: verbose level
     """
+    print("#############################")
+    print('iam in the os_util')
+    print('gmx_bin',gmx_bin)
+    print('arg_list',arg_list)
+    print('input_data',input_data)
+    print('output_file',output_file)
+    print('alt_environment',alt_environment)
+    print('cwd',cwd)
+    print('die_on_error',die_on_error)
 
+    print("#############################")
     this_env = os.environ.copy()
     if alt_environment is not None:
         this_env.update(alt_environment)
@@ -536,14 +550,6 @@ def trace(f):
                                       f'SMILES={rdkit.Chem.MolToSmiles(each_arg)})>')
             except (AttributeError, KeyError):
                 formatted_args.append(each_arg)
-        formatted_args_kwargs = {}
-        for each_key, each_arg in kwargs.items():
-            try:
-                formatted_args_kwargs[each_key] = f'<rdkit.Chem.rdchem.Mol object at {hex(id(each_arg))} ' \
-                                                  f'(Name="{each_arg.GetProp("_Name")}"; ' \
-                                                  f'SMILES={rdkit.Chem.MolToSmiles(each_arg)})>'
-            except (AttributeError, KeyError):
-                formatted_args_kwargs[each_key] = each_arg
         local_print("Entering {} with: {} {}".format(_get_scope(f, args), formatted_args, kwargs),
                     msg_verbosity=verbosity_level.debug, current_verbosity=kwargs.get('verbosity', 1))
         return f(*args, **kwargs)

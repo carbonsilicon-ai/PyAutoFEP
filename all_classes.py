@@ -125,6 +125,7 @@ class Namespace(OrderedDict):
     def __str__(self):
         items_data = []
         for k, v in self.items():
+            #print('k,v',k,v)
             if len(str(v)) < 50:
                 items_data.append('{}={}'.format(k, v))
             else:
