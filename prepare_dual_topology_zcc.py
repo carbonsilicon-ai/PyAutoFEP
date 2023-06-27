@@ -49,9 +49,9 @@ import all_classes
 import process_user_input
 import savestate_util
 import mol_util
-import merge_topologies
+import merge_topologies_zcc
 import os_util
-
+import networkx
 
 SPECIAL_SUBSTITUTIONS = '_LENGTH', '_TEMPERATURE', '_PRESSURE'
 
@@ -385,18 +385,13 @@ def prepare_complex_system(structure_file, base_dir, ligand_dualmol, topology='F
     position = os_util.inner_search(re.compile(r'#include\s+\".*forcefield\.itp\"', flags=re.IGNORECASE).match,
                                     system_topology_list, apply_filter=';')
     if position is False:
-        position = os_util.inner_search(re.compile(r'\s*\[\s+defaults\s+]', flags=re.IGNORECASE).match,
-                                        system_topology_list, apply_filter=';')
-        if position is False:
-            new_file_name = os.path.basename(build_files_dict['protein_top'])
-            shutil.copy2(build_files_dict['protein_top'], new_file_name)
-            os_util.local_print('Failed to find a forcefield.itp import or a [ defaults ] in topology file {}. This '
-                                'suggests a problem in topology file formatting. Please, check inputs, especially '
-                                'force field. Copying {} to {}.'
-                                ''.format(build_files_dict['protein_top'], build_files_dict['protein_top'],
-                                          new_file_name),
-                                msg_verbosity=os_util.verbosity_level.error, current_verbosity=verbosity)
-            raise SystemExit(1)
+        new_file_name = os.path.basename(build_files_dict['protein_top'])
+        shutil.copy2(build_files_dict['protein_top'], new_file_name)
+        os_util.local_print('Failed to find a forcefield.itp import in topology file {}. This suggests a problem in '
+                            'topology file formatting. Please, check inputs, especially force field. Copying {} to {}.'
+                            ''.format(build_files_dict['protein_top'], build_files_dict['protein_top'], new_file_name),
+                            msg_verbosity=os_util.verbosity_level.error, current_verbosity=verbosity)
+        raise SystemExit(1)
     [system_topology_list.insert(position + 2, each_line) for each_line in ligatoms_list]
 
     fn_match = re.compile(r'\s*\[\s+system\s+]', flags=re.IGNORECASE).match
@@ -1142,7 +1137,7 @@ def parse_input_molecules(input_data, verbosity=0):
                     this_data = list(csv.DictReader(fh, delimiter=delimiter))
 
                 # Guess the column name. Note the dumb nested loop to get the correct case.
-                name_columns = ['Name', 'Names', 'Molecule', 'MolName', 'Compound', 'Cmpd', 'Mol']
+                name_columns = ['Name', 'Molecule', 'MolName', 'Compound', 'Cmpd', 'Mol', 'Names']
                 key_name = False
                 key_smiles = False
                 for k in name_columns:
@@ -2444,14 +2439,11 @@ def add_ligand_to_solvated_receptor(ligand_molecule, input_structure_file, outpu
         position = os_util.inner_search(re.compile(r'#include\s+\".*forcefield\.itp\"').match,
                                         topology_data, apply_filter=';')
         if position is False:
-            position = os_util.inner_search(re.compile(r'\s*\[\s+defaults\s+]', flags=re.IGNORECASE).match,
-                                            topology_data, apply_filter=';')
-            if position is False:
-                os_util.local_print('Failed to find a forcefield.itp import or a [ deafults ] in topology file {}. '
-                                    'This suggests a problem in topology file formatting. Please, check inputs, '
-                                    'especially force field.'.format(input_topology),
-                                    msg_verbosity=os_util.verbosity_level.error, current_verbosity=verbosity)
-                raise SystemExit(1)
+            os_util.local_print('Failed to find a forcefield.itp import in topology file {}. This suggests a problem '
+                                'in topology file formatting. Please, check inputs, especially force field.'
+                                ''.format(input_topology),
+                                msg_verbosity=os_util.verbosity_level.error, current_verbosity=verbosity)
+            raise SystemExit(1)
         [topology_data.insert(position + 2, each_line) for each_line in ligatoms_list]
 
     fn_match_lig = re.compile(r'#include\s+\"ligand\.itp\"', flags=re.IGNORECASE).match
@@ -3758,8 +3750,10 @@ if __name__ == '__main__':
                         msg_verbosity=os_util.verbosity_level.default, current_verbosity=arguments.verbose)
 
     # Prepare file to save data
+    print('progress_file:',arguments.progress_file)
     if arguments.progress_file != '':
         progress_data = savestate_util.SavableState(arguments.progress_file)
+        print('progress_data:',progress_data)
     else:
         progress_data = savestate_util.SavableState()
 
@@ -3942,6 +3936,7 @@ if __name__ == '__main__':
         perturbation_graph = progress_data.get('perturbation_map', None)
         if not perturbation_graph:
             try:
+                print('i read perturbation_graph from progress_data')
                 perturbation_graph = progress_data['thermograph']['last_solution']
             except KeyError as error:
                 if error.args[0] == 'thermograph':
@@ -4000,6 +3995,7 @@ if __name__ == '__main__':
 
     # Reads poses data. If a custom MCS was supplied as str (ie, all MCS should custom), use it during pose loading.
     # Otherwise, user wants only specific pairs (of ligands) to use a custom MCS, so use find_mcs during pose loading.
+    '''
     poses_mcs = custom_mcs_data if isinstance(custom_mcs_data, str) else None
     poses_mol_data = align_ligands(receptor_structure_mol, poses_input,
                                    poses_reference_structure=arguments.poses_reference_structure,
@@ -4014,7 +4010,7 @@ if __name__ == '__main__':
                             msg_verbosity=os_util.verbosity_level.error, current_verbosity=arguments.verbose)
 
         raise SystemExit(-1)
-
+    '''
     original_base_pert_dir = arguments.perturbations_dir if arguments.perturbations_dir \
         else 'perturbations_{}'.format(time.strftime('%H%M%S_%d%m%Y'))
 
@@ -4035,6 +4031,7 @@ if __name__ == '__main__':
 
     new_pairs_list = []
     existing_dir_list = []
+    print('perturbation_map:',perturbation_map)
     for morph_pair in perturbation_map:
         morph_dir = '{}-{}'.format(*morph_pair)
         if os.path.isdir(os.path.join(base_pert_dir, morph_dir)):
@@ -4071,23 +4068,34 @@ if __name__ == '__main__':
                                               run_after=arguments.output_runafter,
                                               scripts_templates=arguments.internal.default['output_files_data'],
                                               verbosity=arguments.verbose)
-
+    
+    print('output_data is:',output_data)
     # This will be the generated script data
     output_script_list = [output_data['shebang'], '', 'lastjid=()']
 
     # Iterate over perturbations pairs
+    print('new_pairs_list:',new_pairs_list)
+    #new_pairs_list = [('FXR_12', 'FXR_74'), ('FXR_12', 'FXR_84'), ('FXR_12', 'FXR_88')]
     for morph_pair in new_pairs_list:
+        
+        print('morph_pair:',morph_pair)
 
         morph_dir = '{}-{}'.format(*morph_pair)
-
+        print('morph_dir:',morph_dir)
         os_util.local_print('{:=^50}'.format(' Working on {} '.format(morph_dir)),
                             msg_verbosity=os_util.verbosity_level.default, current_verbosity=arguments.verbose)
 
         # Get the names of the ligands and prepare the accordingly files
         state_a_name, state_b_name = morph_pair
+        print('a,b name',state_a_name, state_b_name)
+        #exit()
         try:
             mol2file_a = ligands_dict[state_a_name]['molecule']
             topfile_a = ligands_dict[state_a_name]['topology']
+            #topfile_a =  ['lig_data/FXR_74.itp']
+            print('mol2file_a',mol2file_a)
+            print('topfile_a',topfile_a)
+            #exit()
         except KeyError:
             os_util.local_print('Ligand {} not found in the ligand data read. Cannot continue. These are the ligands '
                                 'read: {}'.format(state_a_name, ' '.join([n for n in ligands_dict.keys()])),
@@ -4111,6 +4119,8 @@ if __name__ == '__main__':
                                 'your input. mcs_custom_mcs is "{}"'.format(arguments.mcs_custom_mcs),
                                 msg_verbosity=os_util.verbosity_level.error, current_verbosity=arguments.verbose)
             raise SystemExit(-1)
+        print('custom_mcs_data:',custom_mcs_data)
+        print('this_custom_mcs:',this_custom_mcs)
 
         mcs_custom_atommap = None
         # Tries to find a custom atom match from the input
@@ -4121,9 +4131,37 @@ if __name__ == '__main__':
                 # The mapping of A->B was not found, but B->A was, reverse and use it
                 mcs_custom_atommap = [(j, i) for i, j in
                                       arguments.mcs_custom_atommap[tuple(morph_pair[1], morph_pair[0])]]
-
+        '''
+        print('arguments.mcs_custom_atommap:',arguments.mcs_custom_atommap)
+        print('mcs_custom_atommap:',mcs_custom_atommap)
         # From individual files, prepare a dual topology molecule and topology
-        merged_data = merge_topologies.merge_topologies(ligands_dict[state_a_name]['molecule'],
+        print('state_a_m:',ligands_dict[state_a_name]['molecule'])
+        from rdkit import Chem
+        mol = ligands_dict[state_a_name]['molecule']
+        print('mol:',Chem.MolToSmiles(mol))
+        print('state_a_t:',ligands_dict[state_a_name]['topology'])
+        print('save_state:',progress_data)
+        print('checks:',arguments.no_checks)
+        print('mcs:',this_custom_mcs)
+        print('mcs_type:',arguments.mcs_type)
+        print('atom_map:',mcs_custom_atommap)
+        print('num_thread:',arguments.threads)
+        print('verbosity:',arguments.verbose)
+        exit()
+        '''
+        #print(progress_data.__dict__)
+        #print('savedate.keys',progress_data.keys())
+        print('savedate_mcs_dict',progress_data['mcs_dict'])
+        #exit()
+        ####### add by zcc #########
+        from rdkit import Chem
+        #perturbation_graph = progress_data['thermograph']['last_solution']['best_solution']
+        this_custom_mcs_mol = networkx.get_edge_attributes(perturbation_graph,'mcs')[morph_pair]
+        this_custom_mcs = Chem.MolToSmiles(this_custom_mcs_mol)
+        print('this_custom_mcs',this_custom_mcs)
+        mcs_custom_atommap = networkx.get_edge_attributes(perturbation_graph,'atom_map')[morph_pair]
+        ###################
+        merged_data = merge_topologies_zcc.merge_topologies(ligands_dict[state_a_name]['molecule'],
                                                         ligands_dict[state_b_name]['molecule'],
                                                         ligands_dict[state_a_name]['topology'],
                                                         ligands_dict[state_b_name]['topology'],
@@ -4131,7 +4169,7 @@ if __name__ == '__main__':
                                                         mcs=this_custom_mcs, mcs_type=arguments.mcs_type,
                                                         atom_map=mcs_custom_atommap, num_threads=arguments.threads,
                                                         verbosity=arguments.verbose)
-
+    
         if 'lambda' in perturbation_map[tuple(morph_pair)]:
             this_lambda_table = process_lambdas_input(perturbation_map[tuple(morph_pair)]['lambda'],
                                                       no_checks=arguments.no_checks,
@@ -4146,15 +4184,19 @@ if __name__ == '__main__':
             this_lambda_table = lambda_dict
             if arguments.solute_scaling != -1:
                 this_solute_scaling_list = solute_scaling_list
-
+        
+        #print('merged_data',merged_data.dual_topology)
+        #exit()
         # Then embed it to the reference pose
-        merged_data = merge_topologies.constrained_embed_dualmol(merged_data, poses_mol_data[state_a_name],
-                                                                 mcs=this_custom_mcs, mcs_type=arguments.mcs_type,
-                                                                 volume_function=arguments.align_shape_scoring_function,
-                                                                 num_threads=arguments.threads,
-                                                                 savestate=progress_data, verbosity=arguments.verbose)
-
+        #merged_data = merge_topologies.constrained_embed_dualmol(merged_data, poses_mol_data[state_a_name],
+        #                                                         mcs=this_custom_mcs, mcs_type=arguments.mcs_type,
+        #                                                         volume_function=arguments.align_shape_scoring_function,
+        #                                                         num_threads=arguments.threads,
+        #                                                         savestate=progress_data, verbosity=arguments.verbose)
+        
         dual_topology_data = merged_data.dual_topology
+        #print("merged_data.dual_topology:",merged_data.dual_topology) 
+        #exit()
 
         # TODO: allow arbitrary molecule names
         dual_topology_data.molecules[0].name = 'LIG'
@@ -4501,3 +4543,4 @@ if __name__ == '__main__':
 
     os_util.local_print('Done preparing FEP perturbations',
                         current_verbosity=arguments.verbose, msg_verbosity=os_util.verbosity_level.default)
+

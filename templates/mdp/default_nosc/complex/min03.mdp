@@ -32,6 +32,3 @@ pbc         = xyz
 
 ; Dispersion correction
 DispCorr    = EnerPres
-rlist            = 1.2
-rvdw             = 1.2
-rcoulomb         = 1.2
