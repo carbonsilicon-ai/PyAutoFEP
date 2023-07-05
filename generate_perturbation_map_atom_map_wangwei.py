@@ -39,16 +39,19 @@ from math import exp
 import mol_util
 import os_util
 import process_user_input
-#import merge_topologies_test
+# import merge_topologies_test
 
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
-#from rdkit import Chem
-def cal_smi(mi,mj):
-    fp_i =AllChem.GetMorganFingerprint(mi,2)
-    fp_j = AllChem.GetMorganFingerprint(mj,2)
+# from rdkit import Chem
+
+
+def cal_smi(mi, mj):
+    fp_i = AllChem.GetMorganFingerprint(mi, 2)
+    fp_j = AllChem.GetMorganFingerprint(mj, 2)
     simi = DataStructs.DiceSimilarity(fp_i, fp_j)
     return simi
+
 
 def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, threads=1, custom_mcs=None, savestate=None,
                      verbosity=0):
@@ -85,7 +88,8 @@ def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, thread
 
     if len(todo_pairs) > 0:
         if threads == -1:
-            wrapper_fn_tmp = lambda args, kwargs: os_util.wrapper_fn(find_mcs, args, kwargs)
+            def wrapper_fn_tmp(args, kwargs): return os_util.wrapper_fn(
+                find_mcs, args, kwargs)
             mcs_data = map(wrapper_fn_tmp, [[[molecules[mol_i], molecules[mol_j]], None, verbosity]
                                             for (mol_i, mol_j) in todo_pairs],
                            itertools.repeat({'completeRingsOnly': True, 'matchValences': True,
@@ -109,7 +113,8 @@ def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, thread
 
         for each_pair in pairlist:
             if frozenset(each_pair) in custom_mcs:
-                search_dict[frozenset(each_pair)] = custom_mcs[frozenset(each_pair)]
+                search_dict[frozenset(each_pair)
+                            ] = custom_mcs[frozenset(each_pair)]
             elif '*' in custom_mcs:
                 search_dict[frozenset(each_pair)] = custom_mcs['*']
 
@@ -119,7 +124,8 @@ def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, thread
                        for each_result, (mol_i, mol_j) in zip(mcs_data, todo_pairs)}
         for each_pair in pairlist:
             if frozenset(each_pair) in custom_mcs:
-                search_dict[frozenset(each_pair)] = custom_mcs[frozenset(each_pair)]
+                search_dict[frozenset(each_pair)
+                            ] = custom_mcs[frozenset(each_pair)]
             elif '*' in custom_mcs:
                 search_dict[frozenset(each_pair)] = custom_mcs['*']
 
@@ -127,18 +133,21 @@ def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, thread
         this_molkey = frozenset([rdkit.Chem.MolToSmiles(molecules[each_mol_i]),
                                  rdkit.Chem.MolToSmiles(molecules[each_mol_j])])
 
-        similarity = cal_smi(molecules[each_mol_i],molecules[each_mol_j])
+        similarity = cal_smi(molecules[each_mol_i], molecules[each_mol_j])
         if use_hs:
-            num_core_atoms = rdkit.Chem.MolFromSmarts(search_dict[this_molkey].smartsString).GetNumAtoms()
+            num_core_atoms = rdkit.Chem.MolFromSmarts(
+                search_dict[this_molkey].smartsString).GetNumAtoms()
             atoms_i = molecules[each_mol_i].GetNumAtoms()
             atoms_j = molecules[each_mol_j].GetNumAtoms()
         else:
-            num_core_atoms = rdkit.Chem.MolFromSmarts(search_dict[this_molkey].smartsString).GetNumHeavyAtoms()
+            num_core_atoms = rdkit.Chem.MolFromSmarts(
+                search_dict[this_molkey].smartsString).GetNumHeavyAtoms()
             atoms_i = molecules[each_mol_i].GetNumHeavyAtoms()
             atoms_j = molecules[each_mol_j].GetNumHeavyAtoms()
 
         # The edge cost is the number of perturbed atoms in a hypothetical transformation between the pair.
-        perturbed_atoms = (atoms_i - num_core_atoms) + (atoms_j - num_core_atoms)
+        perturbed_atoms = (atoms_i - num_core_atoms) + \
+            (atoms_j - num_core_atoms)
         if perturbed_atoms == 0:
             os_util.local_print('The perturbation between {} and {} would change no heavy atoms. Currently, this is '
                                 'not supported. Should you need to simulate this perturbation, pass perturbation_map '
@@ -146,38 +155,43 @@ def fill_thermograph(thermograph, molecules, pairlist=None, use_hs=False, thread
                                 ''.format(molecules[each_mol_i].GetProp('_Name'),
                                           molecules[each_mol_j].GetProp('_Name')))
             raise SystemExit(1)
-        
-        # get the atom map of each edge
-        core_structure = rdkit.Chem.MolFromSmarts(search_dict[this_molkey].smartsString)
 
-        common_atoms_matches = get_atom_map(molecule_a=molecules[each_mol_i], molecule_b=molecules[each_mol_j], 
+        # get the atom map of each edge
+        core_structure = rdkit.Chem.MolFromSmarts(
+            search_dict[this_molkey].smartsString)
+
+        common_atoms_matches = get_atom_map(molecule_a=molecules[each_mol_i], molecule_b=molecules[each_mol_j],
                                             core_mol=core_structure, multiple_matches=True, verbosity=verbosity)
-                                            
+
         if len(common_atoms_matches) > 1:
             common_atoms = None
             min_index_error_sum = float('inf')
             for match in common_atoms_matches:
-                atom_index_error_sum = sum([abs(match[i][1] - match[i][0]) for i in range(len(match))])
+                atom_index_error_sum = sum(
+                    [abs(match[i][1] - match[i][0]) for i in range(len(match))])
                 if atom_index_error_sum < min_index_error_sum:
                     min_index_error_sum = atom_index_error_sum
                     common_atoms = match
         else:
             common_atoms = common_atoms_matches[0]
-                            
+
         common_atoms_sort = sorted(common_atoms, key=lambda x: x[0])
-                  
+
         thermograph.add_edge(each_mol_i, each_mol_j, perturbed_atoms=perturbed_atoms, desirability=1.0,
                              mcs=core_structure, atom_map=common_atoms_sort, simi=similarity)
-        
-    all_pert_atoms = [i for _, _, i in thermograph.edges(data='perturbed_atoms')]
+
+    all_pert_atoms = [i for _, _,
+                      i in thermograph.edges(data='perturbed_atoms')]
     # Scale the number of perturbed atoms according to ln(0.2) * median(all_pert_atoms), so that the values are rescaled
     # to be [0, 1] and the median value will be 0.2
     # TODO: configurable beta expression
     beta = -1.6094379 / median(all_pert_atoms)
     for (edge_i, edge_j) in thermograph.edges:
-        thermograph[edge_i][edge_j]['cost'] = 1 - exp(beta * thermograph[edge_i][edge_j]['perturbed_atoms'])
-        
+        thermograph[edge_i][edge_j]['cost'] = 1 - \
+            exp(beta * thermograph[edge_i][edge_j]['perturbed_atoms'])
+
     return thermograph
+
 
 def test_center_molecule(map_bias, all_molecules, verbosity=0):
     """ Test center molecule to prepare star or wheel maps
@@ -252,7 +266,8 @@ def run_workers(ant_colony, n_runs=-1, n_threads=1, elitism=-1, comm_freq=20, ve
                 ant_colony.evaporate_pheromone()
 
             # Aggregate results, deposit pheromone
-            ant_colony.solutions.extend([each_result for each_group in results_list for each_result in each_group])
+            ant_colony.solutions.extend(
+                [each_result for each_group in results_list for each_result in each_group])
             [ant_colony.deposit_pheromone(each_result.pheromone_multiplier, each_result.graph)
              for each_group in results_list
              for n, each_result in enumerate(sorted(each_group, key=lambda x: x.cost))
@@ -262,7 +277,8 @@ def run_workers(ant_colony, n_runs=-1, n_threads=1, elitism=-1, comm_freq=20, ve
         with multiprocessing.Pool(n_threads) as thread_pool:
             for run_n in range(int(n_runs / (comm_freq * n_threads))):
                 os_util.local_print('Optimization round {} out of {}'
-                                    ''.format(run_n + 1, int(n_runs / (comm_freq * n_threads))),
+                                    ''.format(
+                                        run_n + 1, int(n_runs / (comm_freq * n_threads))),
                                     msg_verbosity=os_util.verbosity_level.info, current_verbosity=verbosity)
 
                 # Run n_threads parallel hives
@@ -273,7 +289,8 @@ def run_workers(ant_colony, n_runs=-1, n_threads=1, elitism=-1, comm_freq=20, ve
                     ant_colony.evaporate_pheromone()
 
                 # Aggregate results, deposit pheromone
-                ant_colony.solutions.extend([each_result for each_group in results_list for each_result in each_group])
+                ant_colony.solutions.extend(
+                    [each_result for each_group in results_list for each_result in each_group])
                 [ant_colony.deposit_pheromone(each_result.pheromone_multiplier, each_result.graph)
                  for each_group in results_list
                  for n, each_result in enumerate(sorted(each_group, key=lambda x: x.cost))
@@ -281,7 +298,8 @@ def run_workers(ant_colony, n_runs=-1, n_threads=1, elitism=-1, comm_freq=20, ve
 
         # Finish running workers (in case n_runs is not a multiple of comm_freq * n_threads)
         if len(ant_colony.solutions) < n_runs:
-            results_list = ant_colony.run_multi_ants(n_runs - len(ant_colony.solutions))
+            results_list = ant_colony.run_multi_ants(
+                n_runs - len(ant_colony.solutions))
             ant_colony.solutions.extend(results_list)
             [ant_colony.deposit_pheromone(each_result.pheromone_multiplier, each_result.graph)
              for each_result in results_list]
@@ -313,10 +331,11 @@ def process_custom_mcs(custom_mcs, savestate=None, verbosity=0):
                 custom_mcs_result = custom_mcs
             elif all([(isinstance(key, str) and key.count('-') == 1) for key in custom_mcs]):
                 custom_mcs_result = {frozenset(key.split('-')): value
-                                    for key, value in custom_mcs.items()}
+                                     for key, value in custom_mcs.items()}
             else:
                 os_util.local_print('Could not parse you custom MCS "{}". If providing a dict, make sure to follow '
-                                    'the required format (see documentation).'.format(custom_mcs),
+                                    'the required format (see documentation).'.format(
+                                        custom_mcs),
                                     msg_verbosity=os_util.verbosity_level.error, current_verbosity=verbosity)
                 raise SystemExit(1)
         else:
@@ -333,37 +352,39 @@ def process_custom_mcs(custom_mcs, savestate=None, verbosity=0):
 
     return custom_mcs_result
 
-def output_info_json():
+
+def output_info_json(progress_file, map_info_file):
     import pickle
     from rdkit import Chem
     import json
-    input_data = 'progress.pkl'
-    file_path = 'generdated_map_info.json'
-    #map_info = {}
-    with open(input_data, 'rb') as fh:
+
+    with open(progress_file, 'rb') as fh:
         data = pickle.load(fh)
+
     graph = data['thermograph']['last_solution']['best_solution']
     for node_i, node_j, edge_data in graph.edges.data():
         edge_data['mcs'] = Chem.MolToSmiles(edge_data['mcs'])
-        # map_info[(node_i, node_j)]= edge_data
-        #print(node_i, node_j,edge_data)
-    map_info = {node_i+','+node_j: edge_data for node_i, node_j, edge_data in graph.edges.data()}
+    map_info = {node_i+','+node_j: edge_data for node_i,
+                node_j, edge_data in graph.edges.data()}
     datas = json.dumps(map_info, indent=2, separators=(',', ': '))
-    #print(datas)
-    with open(file_path, 'w') as f:
+    with open(map_info_file, 'w') as f:
         f.write(datas)
 
 
 if __name__ == '__main__':
-    Parser = argparse.ArgumentParser(description='Generate a perturbation map using a heuristic algorithm')
-    Parser.add_argument('-i', '--input', type=str, nargs='+', default=None, help='Input molecules')
-    Parser.add_argument('--use_hs', default=None, help='Use hydrogens to score perturbations (Default: off)')
+    Parser = argparse.ArgumentParser(
+        description='Generate a perturbation map using a heuristic algorithm')
+    Parser.add_argument('-i', '--input', type=str, nargs='+',
+                        default=None, help='Input molecules')
+    Parser.add_argument('--use_hs', default=None,
+                        help='Use hydrogens to score perturbations (Default: off)')
     Parser.add_argument('--custom_mcs', type=str, default=None,
                         help='Use this/these custom MCS between pairs. Can be either a string (so the same MCS '
                              'will be used for all pairs) or a dictionary (only pairs present in dictionary will use '
                              'a custom MCS)')
 
-    map_opts = Parser.add_argument_group('General map options', 'General options to control generation of the map')
+    map_opts = Parser.add_argument_group(
+        'General map options', 'General options to control generation of the map')
     map_opts.add_argument('--map_type', type=str, choices=['optimal', 'star', 'wheel'], default=None,
                           help='Type of perturbation map (see manual for more info): optimal (default), star, or '
                                'wheel')
@@ -392,7 +413,8 @@ if __name__ == '__main__':
 
     optimal_opts = Parser.add_argument_group('Optimal map options', 'Options to control generation of an optimal map '
                                                                     'via ACO algorithm')
-    optimal_opts.add_argument('--optimal_max_path', type=int, default=None, help='Max path length (Default: off)')
+    optimal_opts.add_argument('--optimal_max_path', type=int,
+                              default=None, help='Max path length (Default: off)')
     optimal_opts.add_argument('--optimal_perturbation_multiplier', type=float, default=None,
                               help='Multiplier for perturbation score (Default: 20)')
     optimal_opts.add_argument('--optimal_perturbation_exponent', type=float, default=None,
@@ -415,7 +437,8 @@ if __name__ == '__main__':
     optimal_opts.add_argument('--optimal_permanent_edge_threshold', type=float, default=None,
                               help='Edges with this much pheromone become static (Default: off)')
     process_user_input.add_argparse_global_args(Parser)
-    arguments = process_user_input.read_options(Parser, unpack_section='generate_perturbation_map')
+    arguments = process_user_input.read_options(
+        Parser, unpack_section='generate_perturbation_map')
 
     progress_data = savestate_util.SavableState(arguments.progress_file)
 
@@ -428,7 +451,8 @@ if __name__ == '__main__':
                             msg_verbosity=os_util.verbosity_level.error, current_verbosity=arguments.verbose)
         raise SystemExit(1)
 
-    custom_user_data = process_custom_mcs(arguments.custom_mcs, savestate=progress_data, verbosity=arguments.verbose)
+    custom_user_data = process_custom_mcs(
+        arguments.custom_mcs, savestate=progress_data, verbosity=arguments.verbose)
 
     # Reads a networkx.Graph from a pickle file
     if not arguments.input and 'ligands_data' in progress_data:
@@ -451,7 +475,7 @@ if __name__ == '__main__':
     elif arguments.input:
         # Or reads molecules and prepare a networkx.Graph from it
         molecules_dict = OrderedDict()
-        print('the inputs are',arguments.input)
+        print('the inputs are', arguments.input)
         if isinstance(arguments.input, list):
             input_ligands = arguments.input
         if isinstance(arguments.input, str):  # this shoud be an path
@@ -459,20 +483,22 @@ if __name__ == '__main__':
             ligs = os.listdir(arguments.input)
             for lig in ligs:
                 if '.mol' in lig:
-                    pt = os.path.join(arguments.input,lig)
+                    pt = os.path.join(arguments.input, lig)
                     input_ligands.append(pt)
 
         for each_file in input_ligands:
-        #for each_file in arguments.input:
-            print('the file is',each_file)
+            # for each_file in arguments.input:
+            print('the file is', each_file)
             os_util.local_print('Reading data from file {}'.format(each_file),
                                 msg_verbosity=os_util.verbosity_level.info, current_verbosity=arguments.verbose)
             file_ext = splitext(each_file)[1]
             if file_ext in ['.smi', '.smiles']:
 
-                mol_supplier = [i for i in rdkit.Chem.SmilesMolSupplier(each_file, titleLine=False)]
+                mol_supplier = [i for i in rdkit.Chem.SmilesMolSupplier(
+                    each_file, titleLine=False)]
                 if not mol_supplier[0]:
-                    mol_supplier = [i for i in rdkit.Chem.SmilesMolSupplier(each_file, titleLine=True)]
+                    mol_supplier = [i for i in rdkit.Chem.SmilesMolSupplier(
+                        each_file, titleLine=True)]
 
                 for index, each_mol in enumerate(mol_supplier):
                     if each_mol is None:
@@ -492,14 +518,16 @@ if __name__ == '__main__':
                         each_mol = rdkit.Chem.AddHs(each_mol)
                     new_mol_name = mol_util.verify_molecule_name(each_mol, molecules_dict,
                                                                  new_default_name='Mol_{}'
-                                                                                  ''.format(len(molecules_dict) + 1),
+                                                                                  ''.format(
+                                                                                      len(molecules_dict) + 1),
                                                                  verbosity=arguments.verbose)
                     molecules_dict[new_mol_name] = each_mol
             else:
                 each_mol = mol_util.generic_mol_read(ligand_data=each_file, ligand_format=file_ext,
                                                      no_checks=arguments.no_checks, verbosity=arguments.verbose)
                 if each_mol is not None:
-                    each_mol = mol_util.process_dummy_atoms(each_mol, verbosity=arguments.verbose)
+                    each_mol = mol_util.process_dummy_atoms(
+                        each_mol, verbosity=arguments.verbose)
                     tmp_name = os.path.splitext(os.path.basename(each_file))[0]
                     new_mol_name = mol_util.verify_molecule_name(each_mol, molecules_dict, new_default_name=tmp_name,
                                                                  verbosity=arguments.verbose)
@@ -517,7 +545,8 @@ if __name__ == '__main__':
                         continue
                 progress_data['ligands_data'] = {mol_name: {'molecule': rdkit.Chem.PropertyMol.PropertyMol(rdmol)}
                                                  for mol_name, rdmol in molecules_dict.items()}
-                progress_data['ligands_data_{}'.format(time.strftime('%d%m%Y_%H%M%S'))] = progress_data['ligands_data']
+                progress_data['ligands_data_{}'.format(time.strftime(
+                    '%d%m%Y_%H%M%S'))] = progress_data['ligands_data']
 
         if len(molecules_dict) == 2:
             if arguments.no_checks:
@@ -545,7 +574,8 @@ if __name__ == '__main__':
 
         if arguments.verbose >= 1:
             os_util.local_print('These are the molecules read from input files {}: {}'
-                                ''.format(', '.join(arguments.input), ', '.join(molecules_dict.keys())),
+                                ''.format(', '.join(arguments.input),
+                                          ', '.join(molecules_dict.keys())),
                                 msg_verbosity=os_util.verbosity_level.info,
                                 current_verbosity=arguments.verbose)
 
@@ -596,28 +626,32 @@ if __name__ == '__main__':
             progress_data['thermograph'] = {}
         archive = {'runtype': 'optimal', 'bias': arguments.map_bias, 'input_molecules': molecules_dict.copy(),
                    'best_solution': ant_colony.best_solution.graph, 'optimization_data': ant_colony}
-        progress_data['thermograph']['run_{}'.format(time.strftime('%d%m%Y_%H%M%S'))] = archive
+        progress_data['thermograph']['run_{}'.format(
+            time.strftime('%d%m%Y_%H%M%S'))] = archive
         progress_data.save_data()
 
     elif arguments.map_type == 'star':
-        center_molecule = test_center_molecule(arguments.map_bias, molecules_dict, arguments.verbose)
+        center_molecule = test_center_molecule(
+            arguments.map_bias, molecules_dict, arguments.verbose)
 
         # Fill the graph with edges connecting all molecules to the center
-        pairlist = [[center_molecule, each_mol] for each_mol in molecules_dict if each_mol != center_molecule]
+        pairlist = [[center_molecule, each_mol]
+                    for each_mol in molecules_dict if each_mol != center_molecule]
         fill_thermograph(full_thermograph, molecules_dict, pairlist=pairlist, use_hs=arguments.use_hs,
                          threads=arguments.threads, savestate=progress_data, custom_mcs=custom_user_data,
                          verbosity=arguments.verbose)
-                         
 
         if 'thermograph' not in progress_data:
             progress_data['thermograph'] = {}
         archive = {'runtype': 'star', 'bias': center_molecule, 'input_molecules': molecules_dict.copy(),
                    'best_solution': full_thermograph.copy()}
-        progress_data['thermograph']['run_{}'.format(time.strftime('%d%m%Y_%H%M%S'))] = archive
+        progress_data['thermograph']['run_{}'.format(
+            time.strftime('%d%m%Y_%H%M%S'))] = archive
         progress_data.save_data()
 
     elif arguments.map_type == 'wheel':
-        center_molecule = test_center_molecule(arguments.map_bias, molecules_dict, arguments.verbose)
+        center_molecule = test_center_molecule(
+            arguments.map_bias, molecules_dict, arguments.verbose)
 
         wheel_mols = molecules_dict.copy()
         del wheel_mols[center_molecule]
@@ -647,10 +681,12 @@ if __name__ == '__main__':
                     verbosity=arguments.verbose)
 
         # Add edges connecting all molecules to the center
-        pairlist = [[each_mol, center_molecule] for each_mol in molecules_dict if each_mol != center_molecule]
+        pairlist = [[each_mol, center_molecule]
+                    for each_mol in molecules_dict if each_mol != center_molecule]
 
         full_thermograph = networkx.DiGraph()
-        full_thermograph.add_edges_from(ant_colony.best_solution.graph.edges(data=True))
+        full_thermograph.add_edges_from(
+            ant_colony.best_solution.graph.edges(data=True))
         fill_thermograph(full_thermograph, molecules_dict, pairlist=pairlist, use_hs=arguments.use_hs,
                          threads=arguments.threads, savestate=progress_data, custom_mcs=custom_user_data,
                          verbosity=arguments.verbose)
@@ -659,7 +695,8 @@ if __name__ == '__main__':
             progress_data['thermograph'] = {}
         archive = {'runtype': 'wheel', 'bias': arguments.map_bias, 'input_molecules': molecules_dict.copy(),
                    'best_solution': full_thermograph.copy(), 'optimization_data': ant_colony}
-        progress_data['thermograph']['run_{}'.format(time.strftime('%d%m%Y_%H%M%S'))] = archive
+        progress_data['thermograph']['run_{}'.format(
+            time.strftime('%d%m%Y_%H%M%S'))] = archive
         progress_data.save_data()
 
     else:
@@ -697,26 +734,34 @@ if __name__ == '__main__':
                         static_egdes.remove_edge(each_edge[0], each_edge[1])
                     networkx.drawing.draw(static_egdes, with_labels=True, pos=node_position, edge_color='#A0CBE2',
                                           width=4)
-                networkx.drawing.draw(ant_colony.best_solution.graph, with_labels=True, pos=node_position)
-                labels = networkx.get_edge_attributes(ant_colony.best_solution.graph, 'perturbed_atoms')
-                networkx.draw_networkx_edge_labels(ant_colony.best_solution.graph, node_position, edge_labels=labels)
+                networkx.drawing.draw(
+                    ant_colony.best_solution.graph, with_labels=True, pos=node_position)
+                labels = networkx.get_edge_attributes(
+                    ant_colony.best_solution.graph, 'perturbed_atoms')
+                networkx.draw_networkx_edge_labels(
+                    ant_colony.best_solution.graph, node_position, edge_labels=labels)
             else:
 
                 # FIXME: fix this layout
                 outer_edges = deepcopy(full_thermograph)
                 outer_edges.remove_node(center_molecule)
-                node_position = networkx.drawing.circular_layout(outer_edges, center=[0.0, 0.0])
+                node_position = networkx.drawing.circular_layout(
+                    outer_edges, center=[0.0, 0.0])
                 node_position[center_molecule] = [0.0, 0.0]
 
-                networkx.drawing.draw(full_thermograph, with_labels=True, pos=node_position)
-                labels = networkx.get_edge_attributes(full_thermograph, 'perturbed_atoms')
-                networkx.draw_networkx_edge_labels(full_thermograph, node_position, edge_labels=labels)
+                networkx.drawing.draw(
+                    full_thermograph, with_labels=True, pos=node_position)
+                labels = networkx.get_edge_attributes(
+                    full_thermograph, 'perturbed_atoms')
+                networkx.draw_networkx_edge_labels(
+                    full_thermograph, node_position, edge_labels=labels)
 
-            matplotlib.pyplot.savefig('best_graph.svg')
+            matplotlib.pyplot.savefig(arguments.graph_file)
             matplotlib.pyplot.clf()
 
             if arguments.verbose >= os_util.verbosity_level.info:
-                color_map = [each_edge[2] for each_edge in ant_colony.complete_network_undirect.edges(data='desirability')]
+                color_map = [each_edge[2] for each_edge in ant_colony.complete_network_undirect.edges(
+                    data='desirability')]
                 if arguments.optimal_permanent_edge_threshold > 0:
                     color_map = [each_edge if each_edge <= arguments.optimal_permanent_edge_threshold
                                  else arguments.optimal_permanent_edge_threshold for each_edge in color_map]
@@ -726,27 +771,40 @@ if __name__ == '__main__':
                                       pos=networkx.circular_layout(ant_colony.complete_network))
                 matplotlib.pyplot.savefig('full_graph.svg')
 
-                subplots_fig, subplots_axs = matplotlib.pyplot.subplots(2, 2, figsize=(10, 10))
+                subplots_fig, subplots_axs = matplotlib.pyplot.subplots(
+                    2, 2, figsize=(10, 10))
                 subplots_axs[0, 0].set_title('Score per run (log)')
                 subplots_axs[0, 0].semilogy(ant_colony.cost_list, 'b-')
-                subplots_axs[0, 1].set_title('Score per run (linear, decomposed)')
+                subplots_axs[0, 1].set_title(
+                    'Score per run (linear, decomposed)')
 
-                cost_decomposition_matrix = {'total': [], 'length': [], 'perturbation': [], 'degree': []}
+                cost_decomposition_matrix = {
+                    'total': [], 'length': [], 'perturbation': [], 'degree': []}
                 for each_solution in ant_colony.solutions:
-                    cost_data = ant_colony.calculate_network_cost(each_solution.graph, decompose=True)
-                    cost_decomposition_matrix['total'].append(cost_data['total'])
-                    cost_decomposition_matrix['length'].append(cost_data['length'])
-                    cost_decomposition_matrix['perturbation'].append(cost_data['perturbation'])
-                    cost_decomposition_matrix['degree'].append(cost_data['degree'])
+                    cost_data = ant_colony.calculate_network_cost(
+                        each_solution.graph, decompose=True)
+                    cost_decomposition_matrix['total'].append(
+                        cost_data['total'])
+                    cost_decomposition_matrix['length'].append(
+                        cost_data['length'])
+                    cost_decomposition_matrix['perturbation'].append(
+                        cost_data['perturbation'])
+                    cost_decomposition_matrix['degree'].append(
+                        cost_data['degree'])
 
-                subplots_axs[0, 1].plot(cost_decomposition_matrix['total'], label='Total cost', color='#000000')
-                subplots_axs[0, 1].plot(cost_decomposition_matrix['length'], label='Length cost', color='#CC6666')
-                subplots_axs[0, 1].plot(cost_decomposition_matrix['perturbation'], label='Perturb. cost', color='#66CC66')
-                subplots_axs[0, 1].plot(cost_decomposition_matrix['degree'], label='Degree cost', color='#6666CC')
+                subplots_axs[0, 1].plot(
+                    cost_decomposition_matrix['total'], label='Total cost', color='#000000')
+                subplots_axs[0, 1].plot(
+                    cost_decomposition_matrix['length'], label='Length cost', color='#CC6666')
+                subplots_axs[0, 1].plot(
+                    cost_decomposition_matrix['perturbation'], label='Perturb. cost', color='#66CC66')
+                subplots_axs[0, 1].plot(
+                    cost_decomposition_matrix['degree'], label='Degree cost', color='#6666CC')
                 subplots_axs[0, 1].legend()
 
                 subplots_axs[1, 0].set_title('Pheromone multiplier')
-                subplots_axs[1, 0].hist([each_solution.pheromone_multiplier for each_solution in ant_colony.solutions])
+                subplots_axs[1, 0].hist(
+                    [each_solution.pheromone_multiplier for each_solution in ant_colony.solutions])
                 subplots_axs[1, 1].set_title('Pheromone histogram')
                 subplots_axs[1, 1].hist(color_map)
 
@@ -755,11 +813,13 @@ if __name__ == '__main__':
         else:
             outer_edges = deepcopy(full_thermograph)
             outer_edges.remove_node(center_molecule)
-            node_position = networkx.drawing.circular_layout(outer_edges, center=[0.0, 0.0])
+            node_position = networkx.drawing.circular_layout(
+                outer_edges, center=[0.0, 0.0])
             node_position[center_molecule] = [0.0, 0.0]
-            print('full_thermograph:',full_thermograph)
-            print('pos:',node_position)
-            networkx.drawing.draw(full_thermograph, with_labels=True, pos=node_position)
-            matplotlib.pyplot.savefig('best_graph.svg')
+            print('full_thermograph:', full_thermograph)
+            print('pos:', node_position)
+            networkx.drawing.draw(
+                full_thermograph, with_labels=True, pos=node_position)
+            matplotlib.pyplot.savefig(arguments.graph_file)
 
-    output_info_json()
+    output_info_json(arguments.progress_file, arguments.map_info_file)
