@@ -3934,7 +3934,8 @@ if __name__ == '__main__':
 
     else:
         perturbation_graph = progress_data.get('perturbation_map', None)
-        if not perturbation_graph:
+        #if not perturbation_graph:
+        if True:
             try:
                 print('i read perturbation_graph from progress_data')
                 perturbation_graph = progress_data['thermograph']['last_solution']
@@ -3972,11 +3973,12 @@ if __name__ == '__main__':
                                     msg_verbosity=os_util.verbosity_level.debug, current_verbosity=arguments.verbose)
 
         else:
-            perturbation_map = {(node_i, node_j): edge_data
-                                for node_i, node_j, edge_data in perturbation_graph.edges.data()}
-            os_util.local_print('Pertubation map read from perturbation_map in {}. Graph:\n\t{}'
-                                ''.format(progress_data.data_file, perturbation_graph.edges),
-                                msg_verbosity=os_util.verbosity_level.debug, current_verbosity=arguments.verbose)
+            print('graph_data:',perturbation_graph)
+            perturbation_map = perturbation_graph
+            #perturbation_map = {(nodes[0], nodes[1]): edge_data for nodes, edge_data in perturbation_graph.items()}
+            #os_util.local_print('Pertubation map read from perturbation_map in {}. Graph:\n\t{}'
+            #                    ''.format(progress_data.data_file, perturbation_graph.edges),
+            #                    msg_verbosity=os_util.verbosity_level.debug, current_verbosity=arguments.verbose)
             progress_data.save_data()
 
     os_util.local_print('Pertubation map read from {}. Info:\n\tNumber of nodes (molecules): {}'
