@@ -1,15 +1,14 @@
-
-
 from rdkit import Chem
 import rdkit.Chem.PropertyMol
-from merge_topologies_zcc import find_mcs, constrained_two_mol
-import pickle
+from merge_topologies_zcc import constrained_two_mol
 import os
 import savestate_util
 import json
 import argparse
-def AlignmentMols(ref_mol_path, lig_data_path):
-    progress_data = savestate_util.SavableState('progress.pkl')
+
+
+def AlignmentMols(progress_file, ref_mol_path, lig_data_path, aligned_lig_data_path):
+    progress_data = savestate_util.SavableState(progress_file)
     if ref_mol_path != None:
         ref_mol = rdkit.Chem.MolFromMolFile(ref_mol_path, removeHs=False)
     else:
@@ -28,6 +27,10 @@ def AlignmentMols(ref_mol_path, lig_data_path):
 
     # alignment between molecules of each edge
 
+    if os.path.exists(aligned_lig_data_path):
+        print('Output aligned_lig_data_path Pathway already existed ')
+        exit()
+    os.makedirs(aligned_lig_data_path)
 
     for edge in perturbation_map:
         a_mol_p = '{}.mol'.format(edge[0])
@@ -45,42 +48,28 @@ def AlignmentMols(ref_mol_path, lig_data_path):
             # target = rdkit.Chem.MolFromMolFile(t_mol_path, removeHs=False)
             mol_al, mol_b, _ = constrained_two_mol(mola, molb, ref_mol)
 
-            mol_file_names = ('{}.mol'.format(edge[0]), '{}.mol'.format(edge[1]))
-
-            aligned_lig_data_path = 'aligned_lig_data'
-            if not os.path.exists(aligned_lig_data_path):
-                os.makedirs(aligned_lig_data_path)
+            mol_file_names = ('{}.mol'.format(
+                edge[0]), '{}.mol'.format(edge[1]))
 
             for mol, mol_file_name in zip((mol_al, mol_b), mol_file_names):
-                mol_file_path = os.path.join(aligned_lig_data_path, mol_file_name)
+                mol_file_path = os.path.join(
+                    aligned_lig_data_path, mol_file_name)
                 rdkit.Chem.MolToMolFile(mol, mol_file_path)
 
-        os.system(f'cp {lig_data_path}/*.itp aligned_lig_data')
 
-def load_json(file_path):
-    with open(file_path, 'r') as f:
-        data = json.load(f)
-    return data
-def write_json(file_path):
-    path_info = {
-    'ref_mol_path':'lig_data/ejm_46.mol',
-    'lig_data_path': 'lig_data_output'
-    }
-    data = json.dumps(path_info, indent=2, separators=(',', ': '))
-    with open(file_path, 'w') as f:
-        f.write(data)
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='the path of align_ligands json file')
+    parser = argparse.ArgumentParser(
+        description='the path of align_ligands json file')
     parser.add_argument('--file_path', '-f', help='where is your json file?',
                         default='check_ligs_input.json')
     args = parser.parse_args()
-    file_path = 'align_ligs_input.json'
-    write_json(file_path)
-    try:
-        data = load_json(args.file_path)
-    except:
-        print('cannot find your json file')
-        exit()
-    AlignmentMols(data['ref_mol_path'], data['lig_data_path'])
-            
 
+    try:
+        with open(args.file_path, 'r') as f:
+            data = json.load(f)
+    except:
+        print('cannot find your check_ligs_input json file')
+        exit()
+
+    AlignmentMols(data['progress_file'], data['ref_mol_path'],
+                  data['lig_data_path'], data['aligned_lig_data_path'])
