@@ -30,7 +30,6 @@ def Modify_Map(data):
     add_edge_mcs = []
     if len(add_edge)> 0 or add_edge !=None:
         for a_edge in add_edge:
-            a_edge = tuple(a_edge)
             mcs = find_mcs([molecules_dict[a_edge[0]]['molecule'], molecules_dict[a_edge[1]]['molecule']],
                            matchValences=True, ringMatchesRingOnly=True, completeRingsOnly=True,
                            savestate=None).smartsString

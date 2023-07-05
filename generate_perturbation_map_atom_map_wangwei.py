@@ -201,7 +201,9 @@ def test_center_molecule(map_bias, all_molecules, verbosity=0):
 
     if isinstance(map_bias, list):
         map_bias = map_bias[0]
-
+    
+    print('all_mols:',all_molecules)
+    print('map_bias:',map_bias)
     if map_bias not in all_molecules:
         os_util.local_print('The center molecule you supplied ({}) not found in {}.'
                             ''.format(map_bias, ', '.join(all_molecules)),
@@ -518,8 +520,10 @@ if __name__ == '__main__':
                 progress_data['ligands_data'] = {mol_name: {'molecule': rdkit.Chem.PropertyMol.PropertyMol(rdmol)}
                                                  for mol_name, rdmol in molecules_dict.items()}
                 progress_data['ligands_data_{}'.format(time.strftime('%d%m%Y_%H%M%S'))] = progress_data['ligands_data']
-
+        
         if len(molecules_dict) == 2:
+            print('Warning: there is only two mols')
+            '''
             if arguments.no_checks:
                 os_util.local_print('Only two molecules were read. I need at least 3 to construct a meaningful '
                                     'perturbation graph. Because you are running with no_checks, I will go on.'
@@ -535,7 +539,7 @@ if __name__ == '__main__':
                                     msg_verbosity=os_util.verbosity_level.error,
                                     current_verbosity=arguments.verbose)
                 raise SystemExit(1)
-
+            '''    
         elif len(molecules_dict) == 1:
             os_util.local_print('A single molecule was read. With a single molecule, I cannot go on.'
                                 ''.format(len(molecules_dict)),
